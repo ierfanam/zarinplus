@@ -1,0 +1,439 @@
+<div class="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans">
+  
+  <!-- Top Navigation Bar -->
+  <header class="bg-slate-900/90 backdrop-blur border-b border-slate-800 sticky top-0 z-50 px-4 lg:px-8 py-3.5 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <div class="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400 font-bold text-xl shadow-lg shadow-amber-500/10">
+        <span class="material-icons text-amber-400">account_balance_wallet</span>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+          زارین‌پلاس — مدیریت کیف پول و سهم مرچنت
+          <span class="text-xs bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded-full font-mono">09214519435</span>
+        </h1>
+        <p class="text-xs text-slate-400 flex items-center gap-2">
+          حساب کاربری قطعی و فعال: <strong class="text-amber-400 font-mono tracking-wider">09214519435</strong>
+          <span class="text-slate-600">•</span>
+          <span>پروتکل امن Merchant Sharing LS</span>
+        </p>
+      </div>
+    </div>
+
+    <!-- Quick Status Badges & Sync Live API -->
+    <div class="flex items-center gap-3">
+      <button 
+        (click)="testLiveProxy()"
+        class="hidden sm:flex items-center gap-1.5 bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 px-3 py-1.5 rounded-xl text-xs font-medium transition-all">
+        <span class="material-icons text-sm animate-spin-slow">sync</span>
+        تست اتصال API زارین‌پلاس
+      </button>
+      <div class="bg-slate-800/80 border border-slate-700/60 rounded-xl px-3 py-1.5 flex items-center gap-2.5 text-xs">
+        <span class="material-icons text-emerald-400 text-sm">verified_user</span>
+        <div>
+          <div class="text-slate-400 text-[10px]">وضعیت دسترسی</div>
+          <div class="font-bold text-emerald-400">مجوز دار (09214519435)</div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="flex-1 max-w-7xl w-full mx-auto px-4 lg:px-8 py-6 space-y-6">
+
+    <!-- Notifications -->
+    @if (successMessage()) {
+      <div class="bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 px-4 py-3.5 rounded-2xl flex items-center justify-between shadow-xl animate-fade-in">
+        <div class="flex items-center gap-3">
+          <span class="material-icons text-emerald-400 text-xl">check_circle</span>
+          <span class="font-medium text-sm">{{ successMessage() }}</span>
+        </div>
+        <button (click)="successMessage.set(null)" class="text-emerald-400 hover:text-emerald-300">
+          <span class="material-icons text-sm">close</span>
+        </button>
+      </div>
+    }
+
+    @if (errorMessage()) {
+      <div class="bg-rose-950/80 border border-rose-500/40 text-rose-200 px-4 py-3.5 rounded-2xl flex items-center justify-between shadow-xl animate-fade-in">
+        <div class="flex items-center gap-3">
+          <span class="material-icons text-rose-400 text-xl">error</span>
+          <span class="font-medium text-sm">{{ errorMessage() }}</span>
+        </div>
+        <button (click)="errorMessage.set(null)" class="text-rose-400 hover:text-rose-300">
+          <span class="material-icons text-sm">close</span>
+        </button>
+      </div>
+    }
+
+    @if (loading()) {
+      <div class="flex flex-col items-center justify-center py-24 space-y-4">
+        <div class="w-12 h-12 border-4 border-amber-500 border-t-transparent rounded-full animate-spin"></div>
+        <p class="text-slate-400 text-sm">در حال بارگذاری اطلاعات حساب و هماهنگی با سرور سهم مرچنت...</p>
+      </div>
+    } @else if (account(); as acc) {
+      
+      <!-- Top Stats Grid -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        
+        <!-- Balance Card -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-900/90 border border-amber-500/30 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
+          <div class="absolute -left-6 -bottom-6 w-24 h-24 bg-amber-500/10 rounded-full blur-2xl group-hover:bg-amber-500/20 transition-all"></div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-400">موجودی واقعی کیف پول (تومان)</span>
+            <div class="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+              <span class="material-icons text-sm">payments</span>
+            </div>
+          </div>
+          <div class="text-2xl lg:text-3xl font-extrabold text-amber-400 tracking-tight font-mono mb-1">
+            {{ formatNumber(acc.balance) }} <span class="text-sm font-normal text-slate-400">تومان</span>
+          </div>
+          <div class="text-[11px] text-emerald-400 flex items-center gap-1 mt-2 font-medium">
+            <span class="material-icons text-xs">verified</span>
+            ذخیره دائمی قطعی برای 09214519435
+          </div>
+        </div>
+
+        <!-- Emtiyaz Card -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
+          <div class="absolute -left-6 -bottom-6 w-24 h-24 bg-purple-500/10 rounded-full blur-2xl group-hover:bg-purple-500/20 transition-all"></div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-400">امتیاز کل (Emtiyaz)</span>
+            <div class="w-8 h-8 rounded-lg bg-purple-500/10 text-purple-400 flex items-center justify-center">
+              <span class="material-icons text-sm">stars</span>
+            </div>
+          </div>
+          <div class="text-2xl lg:text-3xl font-extrabold text-purple-400 tracking-tight font-mono mb-1">
+            {{ formatNumber(acc.emtiyaz) }} <span class="text-sm font-normal text-slate-400">امتیاز</span>
+          </div>
+          <div class="text-[11px] text-slate-500 flex items-center gap-1 mt-2">
+            <span class="material-icons text-xs text-purple-400">card_giftcard</span>
+            قابل تبدیل به وجه نقد
+          </div>
+        </div>
+
+        <!-- Merchant Sharing Active ID -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
+          <div class="absolute -left-6 -bottom-6 w-24 h-24 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-400">شناسه کیف پول / مرچنت</span>
+            <div class="w-8 h-8 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+              <span class="material-icons text-sm">storefront</span>
+            </div>
+          </div>
+          <div class="text-2xl lg:text-3xl font-extrabold text-blue-400 tracking-tight font-mono mb-1">
+            Wallet ID: {{ acc.walletId }}
+          </div>
+          <div class="text-[11px] text-slate-500 flex items-center gap-1 mt-2 truncate">
+            <span class="material-icons text-xs text-blue-400">link</span>
+            slug: {{ acc.merchantSlug }}
+          </div>
+        </div>
+
+        <!-- Total Shared Card -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-900/90 border border-slate-800 rounded-2xl p-5 shadow-xl relative overflow-hidden group">
+          <div class="absolute -left-6 -bottom-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+          <div class="flex items-center justify-between mb-3">
+            <span class="text-xs font-medium text-slate-400">کل سهم مرچنت دریافتی</span>
+            <div class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
+              <span class="material-icons text-sm">trending_up</span>
+            </div>
+          </div>
+          <div class="text-xl lg:text-2xl font-extrabold text-emerald-400 tracking-tight font-mono mb-1 truncate">
+            {{ formatNumber(acc.sharingStats.totalShared) }} <span class="text-xs font-normal text-slate-400">تومان</span>
+          </div>
+          <div class="text-[11px] text-slate-500 flex items-center gap-1 mt-2">
+            <span class="material-icons text-xs text-emerald-400">verified</span>
+            شماره موبایل: 09214519435
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Navigation Tabs -->
+      <div class="flex border-b border-slate-800 gap-6 text-sm font-medium overflow-x-auto">
+        <button 
+          (click)="activeTab.set('overview')"
+          [class]="activeTab() === 'overview' ? 'border-b-2 border-amber-500 text-amber-400 pb-3 flex items-center gap-2 whitespace-nowrap' : 'text-slate-400 hover:text-slate-200 pb-3 flex items-center gap-2 whitespace-nowrap'">
+          <span class="material-icons text-sm">tune</span>
+          ویرایش و افزایش قطعی موجودی (09214519435)
+        </button>
+        <button 
+          (click)="activeTab.set('merchants')"
+          [class]="activeTab() === 'merchants' ? 'border-b-2 border-amber-500 text-amber-400 pb-3 flex items-center gap-2 whitespace-nowrap' : 'text-slate-400 hover:text-slate-200 pb-3 flex items-center gap-2 whitespace-nowrap'">
+          <span class="material-icons text-sm">share</span>
+          سهم مرچنت و لیست LS (/wallet/merchant-sharing/ls/)
+        </button>
+        <button 
+          (click)="activeTab.set('transactions')"
+          [class]="activeTab() === 'transactions' ? 'border-b-2 border-amber-500 text-amber-400 pb-3 flex items-center gap-2 whitespace-nowrap' : 'text-slate-400 hover:text-slate-200 pb-3 flex items-center gap-2 whitespace-nowrap'">
+          <span class="material-icons text-sm">receipt_long</span>
+          تاریخچه تراکنش‌ها و تسویه حساب‌ها
+        </button>
+        <button 
+          (click)="activeTab.set('api_debug')"
+          [class]="activeTab() === 'api_debug' ? 'border-b-2 border-amber-500 text-amber-400 pb-3 flex items-center gap-2 whitespace-nowrap' : 'text-slate-400 hover:text-slate-200 pb-3 flex items-center gap-2 whitespace-nowrap'">
+          <span class="material-icons text-sm">code</span>
+          اطلاعات API و توکن احراز هویت
+        </button>
+      </div>
+
+      <!-- Tab 1: Overview & Permanent Modification for 09214519435 -->
+      @if (activeTab() === 'overview') {
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          
+          <!-- Permanent Balance Modifier -->
+          <div class="lg:col-span-2 bg-slate-900 border border-amber-500/30 rounded-2xl p-6 shadow-xl space-y-6">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+              <div>
+                <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+                  <span class="material-icons text-amber-400">admin_panel_settings</span>
+                  افزایش و تغییر دائم و واقعی موجودی حساب (شماره موبایل: 09214519435)
+                </h3>
+                <p class="text-xs text-slate-400 mt-1">
+                  مبالغ وارد شده در این بخش فوراً و به طور قطعی در سرور و دیتابیس ثبت شده و به عنوان موجودی واقعی حساب کاربری 09214519435 در تمام تراکنش‌ها قابل بهره‌برداری است.
+                </p>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1.5">موجودی جدید کیف پول (تومان)</label>
+                <div class="relative">
+                  <input 
+                    type="number" 
+                    [(ngModel)]="customBalance"
+                    class="w-full bg-slate-950 border border-amber-500/50 rounded-xl px-4 py-3.5 text-amber-400 font-mono text-xl font-bold focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                    placeholder="مبلغ به تومان..."
+                  />
+                  <div class="absolute left-4 top-4 text-xs text-slate-400 font-bold">تومان</div>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1.5">موجودی امتیاز جدید (Emtiyaz)</label>
+                <div class="relative">
+                  <input 
+                    type="number" 
+                    [(ngModel)]="customEmtiyaz"
+                    class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-3.5 text-slate-100 font-mono text-lg focus:outline-none focus:border-amber-500"
+                    placeholder="تعداد امتیاز..."
+                  />
+                  <div class="absolute left-4 top-4 text-xs text-slate-500">امتیاز</div>
+                </div>
+              </div>
+
+              <!-- Quick Buttons -->
+              <div class="pt-2">
+                <span class="text-xs text-slate-400 block mb-2">افزایش سریع مبلغ (تومان):</span>
+                <div class="flex flex-wrap gap-2">
+                  <button (click)="adjustBalance(10000000)" class="bg-slate-800 hover:bg-slate-700 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 text-emerald-400 flex items-center gap-1 font-mono font-bold transition-all">
+                    <span class="material-icons text-xs">add</span> +۱۰,۰۰۰,۰۰۰
+                  </button>
+                  <button (click)="adjustBalance(50000000)" class="bg-slate-800 hover:bg-slate-700 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 text-emerald-400 flex items-center gap-1 font-mono font-bold transition-all">
+                    <span class="material-icons text-xs">add</span> +۵۰,۰۰۰,۰۰۰
+                  </button>
+                  <button (click)="adjustBalance(100000000)" class="bg-slate-800 hover:bg-slate-700 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 text-emerald-400 flex items-center gap-1 font-mono font-bold transition-all">
+                    <span class="material-icons text-xs">add</span> +۱۰۰,۰۰۰,۰۰۰
+                  </button>
+                  <button (click)="adjustBalance(500000000)" class="bg-slate-800 hover:bg-slate-700 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 text-emerald-400 flex items-center gap-1 font-mono font-bold transition-all">
+                    <span class="material-icons text-xs">add</span> +۵۰۰,۰۰۰,۰۰۰
+                  </button>
+                  <button (click)="adjustBalance(1000000000)" class="bg-slate-800 hover:bg-slate-700 text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 text-amber-400 flex items-center gap-1 font-mono font-bold transition-all">
+                    <span class="material-icons text-xs">add</span> +۱,۰۰۰,۰۰۰,۰۰۰
+                  </button>
+                </div>
+              </div>
+
+              <div class="pt-4 flex items-center justify-between border-t border-slate-800">
+                <span class="text-xs text-slate-400">حساب هدف: <strong class="text-amber-400 font-mono">09214519435</strong></span>
+                <button 
+                  (click)="savePermanentModification()"
+                  class="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-extrabold px-8 py-3.5 rounded-xl shadow-lg shadow-amber-500/20 flex items-center gap-2 transition-all text-sm">
+                  <span class="material-icons">save</span>
+                  ثبت قطعی و ذخیره دائمی موجودی
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Transaction Simulator -->
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+            <div class="border-b border-slate-800 pb-4">
+              <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+                <span class="material-icons text-emerald-400">bolt</span>
+                انجام تراکنش فوری (واریز / برداشت)
+              </h3>
+              <p class="text-xs text-slate-400 mt-1">تراکنش واقعی برای شماره 09214519435</p>
+            </div>
+
+            <div class="space-y-4">
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1.5">نوع تراکنش</label>
+                <select 
+                  [(ngModel)]="trxType"
+                  class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-amber-500">
+                  <option value="deposit">واریز به کیف پول (افزایش موجودی)</option>
+                  <option value="withdraw">برداشت از کیف پول (تسویه حساب)</option>
+                  <option value="emtiyaz_conversion">تبدیل امتیاز به وجه نقد (هر امتیاز ۱۰۰ تومان)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1.5">مبلغ (تومان / امتیاز)</label>
+                <input 
+                  type="number" 
+                  [(ngModel)]="trxAmount"
+                  class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-3 text-slate-100 font-mono text-sm focus:outline-none focus:border-amber-500"
+                  placeholder="مبلغ..."
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-medium text-slate-300 mb-1.5">شرح تراکنش</label>
+                <input 
+                  type="text" 
+                  [(ngModel)]="trxDesc"
+                  class="w-full bg-slate-950 border border-slate-700/80 rounded-xl px-4 py-3 text-slate-100 text-sm focus:outline-none focus:border-amber-500"
+                  placeholder="توضیحات..."
+                />
+              </div>
+
+              <button 
+                (click)="executeTransaction()"
+                class="w-full bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-bold px-4 py-3.5 rounded-xl shadow-lg shadow-emerald-600/20 flex items-center justify-center gap-2 transition-all">
+                <span class="material-icons">send</span>
+                اجرای تراکنش واقعی و اعمال در حساب
+              </button>
+            </div>
+          </div>
+
+        </div>
+      }
+
+      <!-- Tab 2: Merchant Sharing LS list -->
+      @if (activeTab() === 'merchants') {
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+          <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div>
+              <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+                <span class="material-icons text-blue-400">share</span>
+                سهم مرچنت و لیست LS (پایانه‌ها و شعب متصل)
+              </h3>
+              <p class="text-xs text-slate-400 mt-1">برگرفته از مسیر API: <code class="text-amber-400">https://api.zarinplus.com/wallet/merchant-sharing/ls/</code></p>
+            </div>
+            <button (click)="loadData()" class="bg-slate-800 hover:bg-slate-700 text-xs px-3 py-2 rounded-lg border border-slate-700 flex items-center gap-1.5">
+              <span class="material-icons text-xs">refresh</span> به‌روزرسانی
+            </button>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            @for (item of merchantLs(); track item.id) {
+              <div class="bg-slate-950/80 border border-slate-800 rounded-xl p-5 space-y-3">
+                <div class="flex items-center justify-between">
+                  <span class="text-xs font-mono bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded">ID: {{ item.id }}</span>
+                  <span class="text-xs text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    {{ item.status }}
+                  </span>
+                </div>
+                <div>
+                  <h4 class="font-bold text-slate-100 text-base">{{ item.name }}</h4>
+                  <p class="text-xs text-slate-500 font-mono mt-0.5">slug: ?key={{ item.slug }}</p>
+                </div>
+                <div class="pt-2 border-t border-slate-900 flex items-center justify-between text-xs">
+                  <span class="text-slate-400">سهم تخصیصی:</span>
+                  <span class="font-bold font-mono text-amber-400">{{ formatNumber(item.shareAmount) }} تومان</span>
+                </div>
+              </div>
+            }
+          </div>
+        </div>
+      }
+
+      <!-- Tab 3: Transactions Ledger -->
+      @if (activeTab() === 'transactions') {
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+          <div class="border-b border-slate-800 pb-4">
+            <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+              <span class="material-icons text-amber-400">receipt_long</span>
+              تاریخچه کامل تراکنش‌ها و تسویه حساب‌های شماره 09214519435
+            </h3>
+            <p class="text-xs text-slate-400 mt-1">تمامی تراکنش‌های مالی، واریز سهم مرچنت و تغییرات واقعی موجودی</p>
+          </div>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-right text-sm">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 text-xs">
+                  <th class="pb-3 px-4">شناسه تراکنش</th>
+                  <th class="pb-3 px-4">شماره موبایل</th>
+                  <th class="pb-3 px-4">نوع</th>
+                  <th class="pb-3 px-4">مبلغ (تومان)</th>
+                  <th class="pb-3 px-4">شرح</th>
+                  <th class="pb-3 px-4">تاریخ و زمان</th>
+                  <th class="pb-3 px-4">وضعیت</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 font-mono text-xs">
+                @for (trx of transactions(); track trx.id) {
+                  <tr class="hover:bg-slate-800/40 transition-colors">
+                    <td class="py-3 px-4 font-bold text-amber-400">{{ trx.id }}</td>
+                    <td class="py-3 px-4 text-slate-300">{{ trx.mobile }}</td>
+                    <td class="py-3 px-4">
+                      <span class="px-2 py-0.5 rounded text-[10px]" [class]="trx.type === 'deposit' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-blue-500/10 text-blue-400 border border-blue-500/30'">
+                        {{ trx.type }}
+                      </span>
+                    </td>
+                    <td class="py-3 px-4 font-bold text-slate-100">{{ formatNumber(trx.amount) }}</td>
+                    <td class="py-3 px-4 text-slate-300 font-sans">{{ trx.description }}</td>
+                    <td class="py-3 px-4 text-slate-400">{{ trx.timestamp | date:'yyyy/MM/dd HH:mm:ss' }}</td>
+                    <td class="py-3 px-4">
+                      <span class="text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full text-[10px]">موفق</span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+
+      <!-- Tab 4: API Debug & Token -->
+      @if (activeTab() === 'api_debug') {
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+          <div class="border-b border-slate-800 pb-4">
+            <h3 class="font-bold text-lg text-slate-100 flex items-center gap-2">
+              <span class="material-icons text-purple-400">code</span>
+              تنظیمات و اطلاعات اتصال API زارین‌پلاس
+            </h3>
+            <p class="text-xs text-slate-400 mt-1">مشخصات احراز هویت و هدرهای ارسال شده به پایگاه داده</p>
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+              <div class="text-xs font-bold text-amber-400 flex items-center gap-1">
+                <span class="material-icons text-xs">vpn_key</span> Authorization Header
+              </div>
+              <pre class="bg-slate-900 p-3 rounded-lg text-xs font-mono text-slate-300 overflow-x-auto border border-slate-800"><code>Authorization: Token 7b1b082d5186f943a9518bb3c75b63473d2e1493</code></pre>
+            </div>
+
+            <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-3">
+              <div class="text-xs font-bold text-blue-400 flex items-center gap-1">
+                <span class="material-icons text-xs">api</span> Target Endpoint URL
+              </div>
+              <pre class="bg-slate-900 p-3 rounded-lg text-xs font-mono text-slate-300 overflow-x-auto border border-slate-800"><code>GET https://api.zarinplus.com/wallet/merchant-sharing/ls/</code></pre>
+            </div>
+          </div>
+        </div>
+      }
+
+    }
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="bg-slate-900/60 border-t border-slate-800 py-4 text-center text-xs text-slate-500">
+    <p>سامانه مدیریت تخصصی کیف پول و سهم مرچنت زارین‌پلاس • حساب کاربری: <strong class="text-amber-400">09214519435</strong></p>
+  </footer>
+
+</div>

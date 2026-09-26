@@ -1,0 +1,6 @@
+{
+  "name": "ZarinPlus Wallet & Merchant Pro",
+  "description": "Professional ZarinPlus wallet and merchant sharing management dashboard with real balance persistence for 09214519435",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
