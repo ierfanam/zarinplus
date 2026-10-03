@@ -20,6 +20,18 @@ function createAuditLog(data: {
   ).run(data.walletId, data.userId, data.action, data.oldValue, data.newValue, data.req.ip, data.req.userAgent);
 }
 
+router.post('/wallet/deposit/request', authMiddleware, (req, res) => {
+});
+
+router.post('/wallet/transfer', authMiddleware, validate(schemas.transfer), async (req, res) => {
+});
+
+router.post('/wallet/deposit/request', authMiddleware, validate(schemas.depositRequest), async (req, res) => {
+});
+
+router.post('/wallet/transfer', authMiddleware, validate(schemas.transfer), async (req, res) => {
+});
+
 router.get('/wallet/balance', authMiddleware, (req, res) => {
   try {
     const wallet = db.prepare('SELECT * FROM wallets WHERE id = ?').get(req.wallet!.id) as {

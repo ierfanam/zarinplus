@@ -87,6 +87,39 @@ db.exec(`
   )
 `);
 
+db.exec(`
+  CREATE TABLE IF NOT EXISTS journal_entries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    entry_date TEXT NOT NULL,
+    reference_type TEXT NOT NULL,
+    reference_id TEXT NOT NULL,
+    description TEXT NOT NULL,
+    debit_account TEXT NOT NULL,
+    credit_account TEXT NOT NULL,
+    amount REAL NOT NULL,
+    currency TEXT DEFAULT 'IRR',
+    metadata TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS payment_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    wallet_id INTEGER NOT NULL,
+    gateway TEXT NOT NULL,
+    authority TEXT UNIQUE,
+    amount REAL NOT NULL,
+    status TEXT DEFAULT 'pending',
+    order_id TEXT UNIQUE NOT NULL,
+    description TEXT,
+    mobile TEXT,
+    verified_at TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (wallet_id) REFERENCES wallets(id)
+  )
+`);
+
 const insertUser = db.prepare(
   'INSERT OR IGNORE INTO users (mobile, name, password_hash, role, is_verified) VALUES (?, ?, ?, ?, ?)'
 );

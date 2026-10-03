@@ -41,6 +41,16 @@ export const schemas = {
     share_amount: z.number().int().nonnegative().default(0),
     slug: z.string().optional(),
   }),
+  transfer: z.object({
+    toWalletId: z.string().min(1, 'Destination wallet ID is required'),
+    amount: z.number().int().positive('Amount must be positive'),
+    description: z.string().max(500).optional(),
+  }),
+  depositRequest: z.object({
+    amount: z.number().int().positive().min(1000, 'Minimum deposit is 1000 IRR'),
+    description: z.string().max(500).optional(),
+    gateway: z.enum(['zarinpal', 'payir']).default('zarinpal'),
+  }),
   register: z.object({
     mobile: z.string().regex(/^09\d{9}$/, 'Invalid mobile number format'),
     name: z.string().min(2, 'Name is required'),

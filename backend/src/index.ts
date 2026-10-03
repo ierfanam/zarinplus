@@ -9,10 +9,12 @@ import walletRoutes from './routes/wallet.js';
 import merchantRoutes from './routes/merchants.js';
 import auditRoutes from './routes/audit.js';
 import webhookRoutes from './routes/webhooks.js';
+import paymentRoutes from './routes/payment.js';
 
 const app = express();
 
 app.use('/api/webhooks', webhookRoutes);
+app.use('/api/payment', paymentRoutes);
 
 app.use(cors({ origin: config.corsOrigin, credentials: true }));
 app.use(express.json({ limit: '10mb' }));
