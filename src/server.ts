@@ -8,27 +8,7 @@ import express from 'express';
 import {join} from 'node:path';
 import * as fs from 'node:fs';
 
-const browserDistFolder = join(import.meta.dirname, '../browser');
-const dataFilePath = join(import.meta.dirname, '../../zarinplus_data.json');
-
-interface AccountData {
-  mobile: string;
-  name: string;
-  token: string;
-  balance: number;
-  emtiyaz: number;
-  walletId: string;
-  merchantSlug: string;
-  verified: boolean;
-  lastUpdated: string;
-  sharingStats: {
-    totalShared: number;
-    activeMerchantsCount: number;
-    commissionRate: number;
-  };
-}
-
-interface Transaction {
+interface TransactionRow {
   id: string;
   mobile: string;
   type: string;
@@ -38,6 +18,9 @@ interface Transaction {
   status: string;
   referenceId: string;
 }
+
+const browserDistFolder = join(import.meta.dirname, '../browser');
+const dataFilePath = join(import.meta.dirname, '../../zarinplus_data.json');
 
 const defaultData = {
   account: {
@@ -87,7 +70,7 @@ function loadData() {
   return defaultData;
 }
 
-function saveData(data: any) {
+function saveData(data: Record<string, unknown>) {
   try {
     fs.writeFileSync(dataFilePath, JSON.stringify(data, null, 2), 'utf-8');
   } catch (e) {
@@ -104,7 +87,7 @@ app.get('/api/account', (req, res) => {
   res.json({ success: true, ...db.account, merchantLs: db.merchantLs });
 });
 
-app.post('/api/account/update', (req, res) => {
+app.post('/api/account/update', (req: express.Request<object, object, { balance?: number; emtiyaz?: number; name?: string; token?: string; merchantSlug?: string }>, res: express.Response) => {
   const { balance, emtiyaz, name, token, merchantSlug } = req.body;
   const db = loadData();
   
@@ -117,7 +100,7 @@ app.post('/api/account/update', (req, res) => {
   db.account.lastUpdated = new Date().toISOString();
 
   const diff = Number(balance) - oldBalance;
-  const newTrx: Transaction = {
+  const newTrx: TransactionRow = {
     id: 'TRX-' + Math.floor(100000 + Math.random() * 900000),
     mobile: '09214519435',
     type: diff >= 0 ? 'deposit' : 'withdraw',
@@ -163,7 +146,7 @@ app.post('/api/wallet/transaction', (req, res) => {
 
   db.account.lastUpdated = new Date().toISOString();
 
-  const newTrx: Transaction = {
+  const newTrx: TransactionRow = {
     id: 'TRX-' + Math.floor(100000 + Math.random() * 900000),
     mobile: '09214519435',
     type: type || 'deposit',
@@ -207,15 +190,45 @@ app.get('/api/zarinplus/live-proxy', async (req, res) => {
         merchantLs: db.merchantLs
       });
     }
-  } catch (err: any) {
+  } catch (err: unknown) {
     res.json({ 
       success: true, 
       live_connected: false, 
-      error: err.message,
+      error: err instanceof Error ? err.message : 'Unknown error',
       message: 'پروکسی فعال است. اطلاعات و موجودی حساب 09214519435 با موفقیت در دیتابیس محلی و ابری مدیریت می‌شود.',
       account: db.account,
       merchantLs: db.merchantLs
     });
+  }
+});
+
+// API Proxy to Backend (production)
+const backendUrl = (process.env as Record<string, string | undefined>)['BACKEND_URL'] || 'http://localhost:5000';
+
+app.use('/api', async (req, res) => {
+  try {
+    const url = new URL(req.url || '/', backendUrl);
+    const options: RequestInit = {
+      method: req.method,
+      headers: req.headers as Record<string, string>,
+      body: ['GET', 'HEAD'].includes(req.method || 'GET') ? undefined : await new Promise((resolve, reject) => {
+        const chunks: Buffer[] = [];
+        req.on('data', (chunk: Buffer) => chunks.push(chunk));
+        req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+        req.on('error', reject);
+      }),
+    };
+
+    const response = await fetch(url.toString(), options);
+    const body = await response.text();
+
+    res.status(response.status);
+    response.headers.forEach((value: string, key: string) => {
+      res.setHeader(key, value);
+    });
+    res.send(body);
+  } catch {
+    res.status(502).json({ success: false, message: 'Backend proxy error' });
   }
 });
 

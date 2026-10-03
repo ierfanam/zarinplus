@@ -1,34 +1,104 @@
-import { ChangeDetectionStrategy, Component, OnInit, signal } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { ChangeDetectionStrategy, Component, OnInit, signal, inject } from '@angular/core';
+import { HttpClient, HttpHeaders } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { environment } from '../environments/environment.js';
 
-interface Account {
+interface UserAuth {
   mobile: string;
   name: string;
+  role: string;
   token: string;
+}
+
+interface Account {
+  id: string;
   balance: number;
   emtiyaz: number;
-  walletId: string;
   merchantSlug: string;
-  verified: boolean;
   lastUpdated: string;
   sharingStats: {
     totalShared: number;
     activeMerchantsCount: number;
     commissionRate: number;
   };
+  user: {
+    mobile: string;
+    name: string;
+    verified: boolean;
+  };
+}
+
+interface Merchant {
+  id: number;
+  name: string;
+  shareAmount: number;
+  status: string;
+  slug: string;
 }
 
 interface Transaction {
-  id: string;
-  mobile: string;
+  id: number;
   type: string;
   amount: number;
   description: string;
-  timestamp: string;
-  status: string;
   referenceId: string;
+  status: string;
+  timestamp: string;
+}
+
+interface LoginResponse {
+  success: boolean;
+  token: string;
+  user: {
+    id: number;
+    mobile: string;
+    name: string;
+    role: string;
+  };
+  message?: string;
+}
+
+interface BalanceResponse {
+  success: boolean;
+  wallet: Account;
+}
+
+interface TransactionResponse {
+  success: boolean;
+  transactions: Transaction[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+interface MerchantResponse {
+  success: boolean;
+  merchants: Merchant[];
+}
+
+interface UpdateBalanceResponse {
+  success: boolean;
+  message?: string;
+  account: Account;
+}
+
+interface ExecuteTransactionResponse {
+  success: boolean;
+  message?: string;
+  account: Account;
+  transaction: {
+    id: number;
+    type: string;
+    amount: number;
+    description: string;
+    referenceId: string;
+    timestamp: string;
+    status: string;
+  };
 }
 
 @Component({
@@ -40,82 +110,173 @@ interface Transaction {
   styleUrl: './app.css'
 })
 export class App implements OnInit {
+  apiUrl = environment.apiUrl;
+
+  user = signal<UserAuth | null>(null);
   account = signal<Account | null>(null);
   transactions = signal<Transaction[]>([]);
-  merchantLs = signal<any[]>([]);
+  merchantLs = signal<Merchant[]>([]);
   loading = signal<boolean>(true);
   successMessage = signal<string | null>(null);
   errorMessage = signal<string | null>(null);
 
-  // Form states for permanent modification
   customBalance = signal<number>(0);
   customEmtiyaz = signal<number>(0);
-  
-  // Transaction form
+
   trxType = signal<string>('deposit');
   trxAmount = signal<number>(10000000);
   trxDesc = signal<string>('شارژ واقعی سهم مرچنت و کیف پول زارین‌پلاس (09214519435)');
 
-  // Active tab in dashboard
-  activeTab = signal<'overview' | 'merchants' | 'transactions' | 'api_debug'>('overview');
+  activeTab = signal<'overview' | 'merchants' | 'transactions' | 'audit' | 'api_debug'>('overview');
 
-  constructor(private http: HttpClient) {}
+  loginMobile = signal<string>('09214519435');
+  loginPassword = signal<string>('');
+  isLoginMode = signal<boolean>(true);
+
+  private http = inject(HttpClient);
 
   ngOnInit() {
-    this.loadData();
+    const savedUser = localStorage.getItem('zarinplus_user');
+    if (savedUser) {
+      try {
+        this.user.set(JSON.parse(savedUser) as UserAuth);
+      } catch {
+        // ignore parse error
+      }
+    }
+    if (this.user()) {
+      this.loadData();
+    }
+  }
+
+  getHeaders(): HttpHeaders {
+    const token = this.user()?.token;
+    return new HttpHeaders({
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    });
+  }
+
+  login() {
+    this.clearMessages();
+    this.loading.set(true);
+    const mobile = this.loginMobile();
+    const password = this.loginPassword();
+
+    if (!mobile || !password) {
+      this.errorMessage.set('شماره موبایل و رمز عبور الزامی است');
+      this.loading.set(false);
+      return;
+    }
+
+    this.http.post<LoginResponse>(`${this.apiUrl}/auth/login`, {
+      mobile,
+      password,
+    }).subscribe({
+      next: (res) => {
+        if (res.success) {
+          const userAuth: UserAuth = {
+            mobile: res.user.mobile,
+            name: res.user.name,
+            role: res.user.role,
+            token: res.token,
+          };
+          this.user.set(userAuth);
+          localStorage.setItem('zarinplus_user', JSON.stringify(userAuth));
+          this.successMessage.set('ورود با موفقیت انجام شد');
+          this.loading.set(false);
+          this.loadData();
+        } else {
+          this.errorMessage.set(res.message || 'خطا در ورود');
+          this.loading.set(false);
+        }
+      },
+      error: (err) => {
+        this.errorMessage.set(err.error?.message || 'خطا در ارتباط با سرور');
+        this.loading.set(false);
+      },
+    });
+  }
+
+  logout() {
+    this.http.post(`${this.apiUrl}/auth/logout`, {}, { headers: this.getHeaders() }).subscribe({
+      next: () => {
+        this.user.set(null);
+        this.account.set(null);
+        this.transactions.set([]);
+        this.merchantLs.set([]);
+        localStorage.removeItem('zarinplus_user');
+        this.clearMessages();
+      },
+      error: () => {
+        this.user.set(null);
+        this.account.set(null);
+        this.transactions.set([]);
+        this.merchantLs.set([]);
+        localStorage.removeItem('zarinplus_user');
+      },
+    });
   }
 
   loadData() {
     this.loading.set(true);
-    this.http.get<any>('/api/account').subscribe({
+    const headers = this.getHeaders();
+
+    this.http.get<BalanceResponse>(`${this.apiUrl}/wallet/balance`, { headers }).subscribe({
       next: (res) => {
         if (res.success) {
-          this.account.set(res);
-          this.customBalance.set(res.balance);
-          this.customEmtiyaz.set(res.emtiyaz);
-          this.merchantLs.set(res.merchantLs || []);
+          this.account.set(res.wallet);
+          this.customBalance.set(res.wallet.balance);
+          this.customEmtiyaz.set(res.wallet.emtiyaz);
         }
         this.loading.set(false);
       },
       error: (err) => {
-        console.error('Error loading account:', err);
-        this.errorMessage.set('خطا در ارتباط با سرور سهم مرچنت');
+        this.errorMessage.set(err.error?.message || 'خطا در دریافت اطلاعات حساب');
         this.loading.set(false);
-      }
+      },
     });
 
-    this.http.get<any>('/api/transactions').subscribe({
+    this.http.get<TransactionResponse>(`${this.apiUrl}/wallet/transactions`, { headers }).subscribe({
       next: (res) => {
         if (res.success) {
-          this.transactions.set(res.transactions || []);
+          this.transactions.set(res.transactions);
         }
-      }
+      },
+    });
+
+    this.http.get<MerchantResponse>(`${this.apiUrl}/merchants`, { headers }).subscribe({
+      next: (res) => {
+        if (res.success) {
+          this.merchantLs.set(res.merchants);
+        }
+      },
     });
   }
 
-  // Permanently modify balance & emtiyaz for 09214519435
   savePermanentModification() {
     this.clearMessages();
-    this.http.post<any>('/api/account/update', {
+    this.http.post<UpdateBalanceResponse>(`${this.apiUrl}/wallet/update`, {
       balance: this.customBalance(),
-      emtiyaz: this.customEmtiyaz()
-    }).subscribe({
+      emtiyaz: this.customEmtiyaz(),
+    }, { headers: this.getHeaders() }).subscribe({
       next: (res) => {
         if (res.success) {
           this.account.set(res.account);
           this.customBalance.set(res.account.balance);
           this.customEmtiyaz.set(res.account.emtiyaz);
-          this.successMessage.set('موجودی کیف پول شماره 09214519435 با موفقیت و به طور قطعی و دائمی بروزرسانی و ذخیره شد.');
+          this.successMessage.set('موجودی کیف پول با موفقیت و به طور دائمی بروزرسانی و ذخیره شد.');
           this.loadData();
+        } else {
+          this.errorMessage.set(res.message || 'خطا در ثبت تغییرات');
         }
       },
       error: (err) => {
-        this.errorMessage.set('خطا در ثبت تغییرات دائمی موجودی');
-      }
+        this.errorMessage.set(err.error?.message || 'خطا در ثبت تغییرات دائمی موجودی');
+      },
     });
   }
 
-  // Quick increment/decrement helper
   adjustBalance(delta: number) {
     const current = this.customBalance();
     const updated = Math.max(0, current + delta);
@@ -123,20 +284,19 @@ export class App implements OnInit {
     this.savePermanentModification();
   }
 
-  // Execute transaction (Deposit / Withdraw / Emtiyaz conversion)
   executeTransaction() {
     this.clearMessages();
-    this.http.post<any>('/api/wallet/transaction', {
+    this.http.post<ExecuteTransactionResponse>(`${this.apiUrl}/wallet/transaction`, {
       type: this.trxType(),
       amount: this.trxAmount(),
-      description: this.trxDesc()
-    }).subscribe({
+      description: this.trxDesc(),
+    }, { headers: this.getHeaders() }).subscribe({
       next: (res) => {
         if (res.success) {
           this.account.set(res.account);
           this.customBalance.set(res.account.balance);
           this.customEmtiyaz.set(res.account.emtiyaz);
-          this.successMessage.set('تراکنش مالی و افزایش موجودی با موفقیت در حساب 09214519435 اعمال و ثبت شد.');
+          this.successMessage.set('تراکنش مالی و افزایش موجودی با موفقیت اعمال و ثبت شد.');
           this.loadData();
         } else {
           this.errorMessage.set(res.message || 'انجام تراکنش با خطا مواجه شد');
@@ -144,22 +304,21 @@ export class App implements OnInit {
       },
       error: (err) => {
         this.errorMessage.set(err.error?.message || 'خطا در اجرای تراکنش');
-      }
+      },
     });
   }
 
-  // Test live API proxy
   testLiveProxy() {
     this.clearMessages();
-    this.http.get<any>('/api/zarinplus/live-proxy').subscribe({
+    this.http.get<{ success: boolean; message?: string }>(`${this.apiUrl}/zarinplus/live-proxy`, { headers: this.getHeaders() }).subscribe({
       next: (res) => {
         if (res.success) {
-          this.successMessage.set(res.message || 'ارتباط با پروکسی API زارین‌پلاس با موفقیت برقرار شد.');
+          this.successMessage.set(res.message || 'ارتباط با پروکسی API زارین‌پلاس برقرار شد.');
         }
       },
       error: () => {
         this.errorMessage.set('خطا در ارتباط با پروکسی زارین‌پلاس');
-      }
+      },
     });
   }
 

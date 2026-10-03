@@ -9,7 +9,11 @@
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
     "lint": "ng lint",
-    "serve:ssr:app": "node dist/app/server/server.mjs"
+    "serve:ssr:app": "node dist/app/server/server.mjs",
+    "backend": "cd backend && npm run dev",
+    "backend:start": "cd backend && npm start",
+    "start:all": "npm run backend & npm run dev",
+    "install:all": "npm install && cd backend && npm install"
   },
   "private": true,
   "dependencies": {
