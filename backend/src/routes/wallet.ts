@@ -1,11 +1,15 @@
 import { Router, Response } from 'express';
+import { v4 as uuidv4 } from 'uuid';
 import { db } from '../database.js';
 import { authMiddleware, adminOnly } from '../middleware/auth.js';
 import validate, { schemas } from '../middleware/validation.js';
 import { getClientIP, getUserAgent } from '../middleware/rateLimit.js';
-import { AuditLog, Transaction } from '../models/index.js';
+import { PaymentService, generateOrderId } from '../services/payment.js';
+import { AccountingService } from '../services/accounting.js';
+import { Transaction } from '../models/index.js';
 
 const router = Router();
+const paymentService = new PaymentService();
 
 function createAuditLog(data: {
   walletId?: number;
@@ -19,18 +23,6 @@ function createAuditLog(data: {
     'INSERT INTO audit_logs (wallet_id, user_id, action, old_value, new_value, ip_address, user_agent) VALUES (?, ?, ?, ?, ?, ?, ?)'
   ).run(data.walletId, data.userId, data.action, data.oldValue, data.newValue, data.req.ip, data.req.userAgent);
 }
-
-router.post('/wallet/deposit/request', authMiddleware, (req, res) => {
-});
-
-router.post('/wallet/transfer', authMiddleware, validate(schemas.transfer), async (req, res) => {
-});
-
-router.post('/wallet/deposit/request', authMiddleware, validate(schemas.depositRequest), async (req, res) => {
-});
-
-router.post('/wallet/transfer', authMiddleware, validate(schemas.transfer), async (req, res) => {
-});
 
 router.get('/wallet/balance', authMiddleware, (req, res) => {
   try {
@@ -86,6 +78,166 @@ function getActiveMerchantsCount(walletId: number): number {
   const result = db.prepare('SELECT COUNT(*) as count FROM merchants WHERE wallet_id = ? AND status = ?').get(walletId, 'active') as { count: number };
   return result.count || 0;
 }
+
+router.post('/wallet/deposit/request', authMiddleware, validate(schemas.depositRequest), async (req, res) => {
+  try {
+    const { amount, description, gateway = 'zarinpal' } = req.body;
+
+    const walletId = req.wallet!.id;
+    const mobile = req.user!.mobile;
+    const orderId = generateOrderId();
+
+    const paymentRequest = db.prepare(
+      'INSERT INTO payment_requests (wallet_id, gateway, amount, order_id, description, mobile, status) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(walletId, gateway, amount, orderId, description || 'Wallet deposit', mobile, 'pending');
+
+    const paymentId = paymentRequest.lastInsertRowid;
+
+    try {
+      const response = await paymentService.requestPayment(gateway, {
+        amount,
+        description: description || 'Wallet deposit',
+        mobile,
+        orderId,
+      });
+
+      if (response.success && response.authority) {
+        db.prepare('UPDATE payment_requests SET authority = ? WHERE id = ?').run(response.authority, paymentId);
+
+        AccountingService.recordPaymentGatewayTransaction(
+          amount,
+          orderId,
+          gateway,
+          JSON.stringify({ paymentId, walletId, mobile })
+        );
+
+        res.json({
+          success: true,
+          paymentId,
+          orderId,
+          authority: response.authority,
+          url: response.url,
+          amount,
+          gateway,
+        });
+      } else {
+        db.prepare('UPDATE payment_requests SET status = ? WHERE id = ?').run('failed', paymentId);
+        res.status(400).json({
+          success: false,
+          message: response.message || 'Failed to create payment request',
+        });
+      }
+    } catch (paymentError) {
+      db.prepare('UPDATE payment_requests SET status = ? WHERE id = ?').run('error', paymentId);
+      res.status(500).json({
+        success: false,
+        message: 'Payment gateway error',
+      });
+    }
+  } catch (err) {
+    console.error('Deposit request error:', err);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
+router.post('/wallet/transfer', authMiddleware, validate(schemas.transfer), async (req, res) => {
+  try {
+    const { toWalletId, amount, description } = req.body;
+    const fromWalletId = req.wallet!.id;
+    const reqIp = getClientIP(req);
+    const reqAgent = getUserAgent(req);
+
+    if (toWalletId === String(fromWalletId)) {
+      return res.status(400).json({ success: false, message: 'Cannot transfer to same wallet' });
+    }
+
+    const fromWallet = db.prepare('SELECT balance, wallet_id FROM wallets WHERE id = ?').get(fromWalletId) as {
+      balance: number;
+      wallet_id: string;
+    };
+
+    if (fromWallet.balance < amount) {
+      return res.status(400).json({ success: false, message: 'Insufficient balance' });
+    }
+
+    const toWallet = db.prepare('SELECT id, balance FROM wallets WHERE wallet_id = ?').get(toWalletId) as {
+      id: number;
+      balance: number;
+    } | undefined;
+
+    if (!toWallet) {
+      return res.status(404).json({ success: false, message: 'Destination wallet not found' });
+    }
+
+    const referenceId = `ZP-TRF-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+
+    db.prepare('UPDATE wallets SET balance = balance - ?, updated_at = ? WHERE id = ?').run(
+      amount,
+      new Date().toISOString(),
+      fromWalletId
+    );
+
+    db.prepare('UPDATE wallets SET balance = balance + ?, updated_at = ? WHERE id = ?').run(
+      amount,
+      new Date().toISOString(),
+      toWallet.id
+    );
+
+    AccountingService.recordTransfer(fromWalletId, toWallet.id, amount, referenceId);
+
+    const trxResult = db.prepare(
+      'INSERT INTO transactions (wallet_id, type, amount, description, reference_id, status, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      fromWalletId,
+      'transfer_out',
+      amount,
+      description || `Transfer to wallet ${toWalletId}`,
+      referenceId,
+      'successful',
+      JSON.stringify({ toWalletId, ip: reqIp })
+    );
+
+    db.prepare(
+      'INSERT INTO transactions (wallet_id, type, amount, description, reference_id, status, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      toWallet.id,
+      'transfer_in',
+      amount,
+      description || `Transfer from wallet ${fromWallet.wallet_id}`,
+      referenceId,
+      'successful',
+      JSON.stringify({ fromWalletId: fromWallet.wallet_id, ip: reqIp })
+    );
+
+    createAuditLog({
+      walletId: fromWalletId,
+      userId: req.user!.id,
+      action: 'transfer_out',
+      oldValue: JSON.stringify({ balance: fromWallet.balance }),
+      newValue: JSON.stringify({ balance: fromWallet.balance - amount }),
+      req: { ip: reqIp, userAgent: reqAgent },
+    });
+
+    const updated = db.prepare('SELECT * FROM wallets WHERE id = ?').get(fromWalletId);
+
+    res.json({
+      success: true,
+      message: 'Transfer completed successfully',
+      account: updated,
+      transaction: {
+        id: trxResult.lastInsertRowid,
+        referenceId,
+        amount,
+        toWalletId,
+        status: 'successful',
+        timestamp: new Date().toISOString(),
+      },
+    });
+  } catch (err) {
+    console.error('Transfer error:', err);
+    res.status(500).json({ success: false, message: 'Transfer failed' });
+  }
+});
 
 router.post('/wallet/update', authMiddleware, adminOnly, validate(schemas.updateBalance), (req, res) => {
   try {
